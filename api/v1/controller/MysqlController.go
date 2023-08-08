@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,9 +26,13 @@ func MysqlController(c *gin.Context) {
 
 	id := c.Query("id")
 	var user User
+	var wg sync.WaitGroup
 
-	go updateOne(id, &user)
-	go readOne(id, &user)
+	wg.Add(2)
+	go updateOne(id, &user, &wg)
+	go readOne(id, &wg)
+
+	wg.Wait()
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "pong",
@@ -36,7 +41,8 @@ func MysqlController(c *gin.Context) {
 	})
 }
 
-func updateOne(id string, user *User) {
+func updateOne(id string, user *User, wg *sync.WaitGroup) {
+	defer wg.Done()
 	mysqlDsn := viper.GetString("mysql.dsn")
 	db, err := gorm.Open(mysql.Open(mysqlDsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
@@ -51,15 +57,17 @@ func updateOne(id string, user *User) {
 	tx.First(&user, id)
 	user.Name = "先请求"
 	tx.Save(&user)
-	time.Sleep(10 * time.Second)
+	d := 10 * time.Second
+	time.Sleep(d)
 	tx.Rollback()
 }
 
-func readOne(id string, user *User) {
+func readOne(id string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	var user User
 	mysqlDsn := viper.GetString("mysql.dsn")
-	db, err := gorm.Open(mysql.Open(mysqlDsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
+	db, err := gorm.Open(mysql.Open(mysqlDsn), &gorm.Config{})
 
 	if err != nil {
 		panic("failed to connect database")
@@ -69,11 +77,14 @@ func readOne(id string, user *User) {
 	tx := db.Begin()
 	tx.Exec("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
 
-	time.Sleep(5 * time.Second)
-	tx.First(&user, id)
+	count := 100
+	for i := 0; i < count; i++ {
 
-	fmt.Println(user)
+		tx.First(&user, id)
+		if user.Name == "先请求" {
+			fmt.Println("读到了")
+		}
+	}
 
-	time.Sleep(5 * time.Second)
 	tx.Commit()
 }
