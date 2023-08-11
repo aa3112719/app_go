@@ -18,7 +18,10 @@ func main() {
 	port := viper.GetString("server.port") // 获取端口配置
 
 	r := gin.Default()
+	customCtrl := &controller.CustomHandler{}
 
+	api := r.Group("/api")
+	customCtrl.RegisterRoutes(api)
 	r.GET("/ping", controller.MysqlController)
 	r.Run(":" + port)
 }

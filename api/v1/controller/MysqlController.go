@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
@@ -57,8 +56,6 @@ func updateOne(id string, user *User, wg *sync.WaitGroup) {
 	tx.First(&user, id)
 	user.Name = "先请求"
 	tx.Save(&user)
-	d := 10 * time.Second
-	time.Sleep(d)
 	tx.Rollback()
 }
 
@@ -74,17 +71,17 @@ func readOne(id string, wg *sync.WaitGroup) {
 	}
 
 	// 事务级别是读未提交
-	tx := db.Begin()
-	tx.Exec("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+	// tx := db.Begin()
+	// tx.Exec("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
 
 	count := 100
 	for i := 0; i < count; i++ {
 
-		tx.First(&user, id)
+		db.First(&user, id)
 		if user.Name == "先请求" {
 			fmt.Println("读到了")
 		}
 	}
 
-	tx.Commit()
+	// tx.Commit()
 }
